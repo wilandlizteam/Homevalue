@@ -5,24 +5,25 @@
    * made a missing directory able to break a deploy.
    *
    * Run on demand:  npm run typecheck:server
+   *
+   * WHY "nodenext" AND NOT "bundler":
+   * These files are not bundled. Vercel compiles each .ts under api/ to .js,
+   * leaves the import specifiers exactly as written, and Node's ESM resolver
+   * runs the result. "nodenext" is that same resolver, so it is the only
+   * setting that makes the type-checker agree with production. It requires an
+   * explicit extension on every relative import, and it resolves
+   * "./x.js" back to "./x.ts" — which is precisely the pattern the runtime
+   * needs. A wrong specifier is now a compile error here instead of an
+   * ERR_MODULE_NOT_FOUND after deploy.
    */
   "compilerOptions": {
     "target": "ES2023",
     "lib": ["ES2023"],
-    "module": "ESNext",
-    "moduleResolution": "bundler",
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
     "moduleDetection": "force",
     "types": ["node"],
     "noEmit": true,
-    /*
-     * Relative imports in api/ carry an explicit .ts extension, because
-     * package.json declares "type": "module" and Node's ESM resolver does not
-     * accept extensionless specifiers — an extensionless import made the
-     * function fail to load at runtime with ERR_MODULE_NOT_FOUND. This flag
-     * lets the type-checker accept the extension that the runtime requires.
-     * tsconfig.json (the app) already sets the same flag.
-     */
-    "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": true,
     "isolatedModules": true,
     "skipLibCheck": true,

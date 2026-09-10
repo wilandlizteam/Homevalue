@@ -236,14 +236,14 @@ for (const vp of VIEWPORTS) {
   const copy2 = await page.evaluate(() => ({
     h1: document.querySelector('h1')?.textContent,
     cta: document.querySelector('form button[type=submit]')?.textContent,
-    // The timeline field must be gone from the DOM entirely.
-    timelineNodes: document.querySelectorAll(
-      '.choice, .timeline, #timeline-group, [name="timeline"]',
-    ).length,
-    bodyMentionsTimeline: /timeline|0–3 months|3–6 months|6–12 months|just curious/i.test(
-      document.body.innerText,
-    ),
-    fields: [...document.querySelectorAll('form input')].map((i) => i.id),
+    timelineLegend: document.querySelector('.timeline__legend')?.textContent ?? '',
+    timelineOptional: document.querySelector('.timeline__optional')?.textContent?.trim(),
+    choiceLabels: [...document.querySelectorAll('#timeline-group .choice span:last-child')]
+      .map((s) => s.textContent),
+    // Every option must be a comfortable thumb target on a phone.
+    smallChoices: [...document.querySelectorAll('#timeline-group .choice')]
+      .filter((c) => c.getBoundingClientRect().height < 44).length,
+    fields: [...document.querySelectorAll('form input:not([type=radio])')].map((i) => i.id),
   }));
   check(
     `${tag} step 2 headline is the market-analysis question`,
@@ -251,14 +251,25 @@ for (const vp of VIEWPORTS) {
     copy2.h1,
   );
   check(
-    `${tag} timeline field is gone from the DOM`,
-    copy2.timelineNodes === 0,
-    `${copy2.timelineNodes} timeline nodes found`,
+    `${tag} timeline question is asked verbatim`,
+    copy2.timelineLegend.includes('How soon are you looking to sell your home?'),
+    copy2.timelineLegend,
   );
+  check(`${tag} timeline is labelled Optional`, copy2.timelineOptional === 'Optional',
+    copy2.timelineOptional);
   check(
-    `${tag} no timeline wording is rendered anywhere on page 2`,
-    copy2.bodyMentionsTimeline === false,
+    `${tag} the four approved timeline options are offered`,
+    JSON.stringify(copy2.choiceLabels) ===
+      JSON.stringify([
+        '0–3 months',
+        '3–6 months',
+        '6–12 months',
+        "I'm not interested in selling. I'm just curious about my home value.",
+      ]),
+    JSON.stringify(copy2.choiceLabels),
   );
+  check(`${tag} every timeline option is a 44px+ touch target`,
+    copy2.smallChoices === 0, `${copy2.smallChoices} too small`);
   check(
     `${tag} page 2 collects exactly first, last, email, phone`,
     JSON.stringify(copy2.fields) ===
@@ -300,13 +311,13 @@ for (const vp of VIEWPORTS) {
 
   await page.fill('#email', 'dana.ortiz@example.com');
 
-  // 9. Submitting now needs nothing beyond the four contact fields.
+  // 9. The timeline is optional — the form must submit without it.
   await page.click('form button[type=submit]');
   await page.waitForSelector('.success');
-  check(`${tag} submits with only the four contact fields`,
+  check(`${tag} submits with the timeline left unanswered`,
     leadPosts.length === 1, `${leadPosts.length} posts`);
-  check(`${tag} no timeline key is sent to /api/lead`,
-    !('timeline' in leadPosts[0]), JSON.stringify(Object.keys(leadPosts[0] ?? {})));
+  check(`${tag} an unanswered timeline is sent as an empty string`,
+    leadPosts[0]?.timeline === '', JSON.stringify(leadPosts[0]?.timeline));
 
   // Back to a fresh form to exercise the failure/success paths below.
   leadPosts = [];
@@ -322,6 +333,12 @@ for (const vp of VIEWPORTS) {
   await page.fill('#lastName', 'Ortiz');
   await page.fill('#email', 'dana.ortiz@example.com');
   await page.fill('#phone', '7145550142');
+  // This time answer the question, so the payload check below sees a real value.
+  await page.locator('.choice', { hasText: '0–3 months' }).first().click();
+  check(
+    `${tag} selecting a timeline marks exactly one option`,
+    (await page.locator('.choice[data-selected="true"]').count()) === 1,
+  );
 
   const consentText =
     (await page.locator('form .form-footnote').last().textContent()) ?? '';
@@ -363,9 +380,10 @@ for (const vp of VIEWPORTS) {
 
   // 12. Payload completeness + attribution
   const sent = successPosts[0] ?? {};
-  const required = ['propertyAddress', 'firstName', 'lastName', 'email', 'phone'];
+  const required = ['propertyAddress', 'firstName', 'lastName', 'email', 'phone', 'timeline'];
   const missing = required.filter((k) => !sent[k]);
   check(`${tag} lead payload complete`, missing.length === 0, `missing ${missing}`);
+  check(`${tag} chosen timeline is sent verbatim`, sent.timeline === '0-3 months', sent.timeline);
   check(
     `${tag} UTM + fbclid preserved`,
     sent.attribution?.utm_source === 'facebook' &&

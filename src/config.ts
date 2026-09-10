@@ -42,6 +42,8 @@ export const COPY = {
   step2Sub:
     "We'll use this information to send your personalized home value and market analysis.",
   step2Cta: 'GET MY HOME VALUE',
+  timelineLabel: 'How soon are you looking to sell your home?',
+  timelineOptionalNote: 'Optional',
   /* Broad, low-pressure consent line. Deliberately not about selling. */
   consent:
     'By submitting this form, you agree that Wil & Liz may contact you regarding your real estate goals.',
@@ -49,6 +51,33 @@ export const COPY = {
   successBody:
     'Thanks for reaching out. Wil & Liz Team will be in touch shortly to discuss your home and your selling goals.',
 } as const;
+
+/**
+ * ---------------------------------------------------------------------------
+ * SELLING TIMELINE
+ * ---------------------------------------------------------------------------
+ * The one qualifying question on step 2. It is optional on purpose: making it
+ * required costs completions, and a lead with no timeline is still a lead.
+ *
+ * The fourth option exists so the "just curious" visitor has somewhere honest
+ * to land instead of picking a timeline they do not mean — which is worse than
+ * no answer, because it sends the team chasing a seller who is not selling.
+ * It renders full-width because its label is a sentence, not a phrase.
+ *
+ * `value` is what reaches Follow Up Boss and must stay in step with
+ * ALLOWED_TIMELINES in api/_lib/lead-core.ts. `label` is what the visitor sees.
+ * ---------------------------------------------------------------------------
+ */
+export const TIMELINE_OPTIONS = [
+  { value: '0-3 months', label: '0–3 months' },
+  { value: '3-6 months', label: '3–6 months' },
+  { value: '6-12 months', label: '6–12 months' },
+  {
+    value: 'Just curious about my home value',
+    label: "I'm not interested in selling. I'm just curious about my home value.",
+    wide: true,
+  },
+] as const;
 
 /**
  * ---------------------------------------------------------------------------

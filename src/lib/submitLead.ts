@@ -36,6 +36,7 @@ export async function submitLead(
         lastName: draft.lastName.trim(),
         email: draft.email.trim(),
         phone: draft.phone.trim(),
+        timeline: draft.timeline,
         source: describeSource(attribution),
         attribution,
       }),

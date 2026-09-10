@@ -58,6 +58,7 @@ const validLead = (over = {}) => ({
   lastName: 'Ortiz',
   email: 'dana.ortiz@example.com',
   phone: '(714) 555-0142',
+  timeline: '3-6 months',
   source: 'facebook / seller_q4',
   attribution: {
     utm_source: 'facebook',
@@ -101,7 +102,9 @@ const noteCall = () => calls.find((c) => c.url.includes('/v1/notes'));
   check('phone maps to person.phones', () =>
     assert.equal(ev.body.person.phones[0].value, '(714) 555-0142'));
 
-  // The contact fields must hold exactly what was typed, nothing else.
+  // The contact fields must hold exactly what was typed, nothing else. The
+  // address and the timeline belong in the tags and the note, not smuggled
+  // into a name or an email.
   check('contact fields hold only what the visitor typed', () => {
     const contact = JSON.stringify([
       ev.body.person.firstName,
@@ -110,13 +113,14 @@ const noteCall = () => calls.find((c) => c.url.includes('/v1/notes'));
       ev.body.person.phones,
     ]);
     assert.equal(contact.includes('Camino Real'), false, 'address leaked into contact fields');
-    assert.equal(/timeline/i.test(contact), false, 'timeline data present');
+    assert.equal(/3-6 months/.test(contact), false, 'timeline leaked into contact fields');
   });
 
-  // The timeline field is gone entirely — nothing about it may reach the CRM.
-  check('no timeline data anywhere in the event payload', () => {
-    assert.equal(/timeline/i.test(JSON.stringify(ev.body)), false, JSON.stringify(ev.body));
-  });
+  check('timeline is carried as a tag', () =>
+    assert.ok(ev.body.person.tags.includes('Timeline: 3-6 months'),
+      JSON.stringify(ev.body.person.tags)));
+  check('timeline appears in the event message', () =>
+    assert.match(ev.body.message, /Selling timeline: 3-6 months/));
 
   check('source identifies the landing page, not the ad', () =>
     assert.equal(ev.body.source, 'sell.wilandliz.com'));
@@ -126,9 +130,6 @@ const noteCall = () => calls.find((c) => c.url.includes('/v1/notes'));
     assert.equal(ev.body.type, 'Seller Inquiry'));
   check('ad source is preserved as a tag', () =>
     assert.ok(ev.body.person.tags.includes('Source: facebook / seller_q4')));
-  check('no timeline tag is applied', () =>
-    assert.equal(ev.body.person.tags.some((t) => /timeline|curious/i.test(t)), false,
-      JSON.stringify(ev.body.person.tags)));
 
   /* ---- the note ---- */
   const note = noteCall();
@@ -141,8 +142,8 @@ const noteCall = () => calls.find((c) => c.url.includes('/v1/notes'));
     assert.equal(note.body.personId, 55501));
   check('note subject names the landing page', () =>
     assert.equal(note.body.subject, 'Seller Lead from Wil & Liz Seller Landing Page'));
-  check('no timeline data anywhere in the note', () =>
-    assert.equal(/timeline/i.test(note.body.body), false, note.body.body));
+  check('note leads with the timeline', () =>
+    assert.match(note.body.body, /^Timeline: 3-6 months/));
   check('note body carries the property address', () =>
     assert.match(note.body.body, /1420 Camino Real, Fullerton, CA 92835/));
   check('note body carries the rest of the step-2 detail', () => {
@@ -223,19 +224,65 @@ for (const [label, body, expected] of [
 }
 
 /* ========================================================================== */
-/* 5. The removed timeline field                                              */
+/* 5. The selling timeline                                                    */
 /* ========================================================================== */
 {
-  // A stale client (or a tampered request) may still send `timeline`. It must
-  // be ignored, not rejected, and must never reach Follow Up Boss.
+  // Every value the form can produce must be accepted.
+  for (const value of ['0-3 months', '3-6 months', '6-12 months']) {
+    stubFetch((c) => (c.url.includes('/v1/events') ? json(201, { id: 80 }) : json(200, {})));
+    const result = await handleLead(validLead({ timeline: value }));
+    check(`"${value}" is accepted and tagged`, () => {
+      assert.equal(result.status, 200);
+      assert.ok(eventsCall().body.person.tags.includes(`Timeline: ${value}`));
+    });
+  }
+}
+{
+  // "Just curious" is the one answer the team must not mistake for a seller.
   stubFetch((c) => (c.url.includes('/v1/events') ? json(201, { id: 81 }) : json(200, {})));
-  const result = await handleLead({ ...validLead(), timeline: '3-6 months' });
-  check('a stray timeline value does not break the submission', () =>
-    assert.equal(result.status, 200));
-  check('a stray timeline value never reaches the event', () =>
-    assert.equal(/timeline|3-6 months/i.test(JSON.stringify(eventsCall().body)), false));
-  check('a stray timeline value never reaches the note', () =>
-    assert.equal(/timeline|3-6 months/i.test(noteCall().body.body), false));
+  const result = await handleLead(
+    validLead({ timeline: 'Just curious about my home value' }),
+  );
+  check('"just curious" is accepted', () => assert.equal(result.status, 200));
+  check('"just curious" gets its own tag, not a Timeline: tag', () => {
+    const tags = eventsCall().body.person.tags;
+    assert.ok(tags.includes('Curious — not selling yet'), JSON.stringify(tags));
+    assert.equal(tags.some((t) => t.startsWith('Timeline: ')), false, JSON.stringify(tags));
+  });
+  check('"just curious" is unmissable at the top of the note', () =>
+    assert.match(noteCall().body.body, /^Timeline: NOT SELLING/));
+}
+{
+  // The question is optional, so no answer must sail straight through.
+  stubFetch((c) => (c.url.includes('/v1/events') ? json(201, { id: 82 }) : json(200, {})));
+  const result = await handleLead(validLead({ timeline: '' }));
+  check('an unanswered timeline is accepted', () => assert.equal(result.status, 200));
+  check('an unanswered timeline is recorded as not specified', () => {
+    assert.ok(eventsCall().body.person.tags.includes('Timeline: not specified'));
+    assert.match(noteCall().body.body, /^Timeline: not specified/);
+  });
+}
+{
+  // An older cached copy of the page may post no timeline key at all. That is
+  // the same as an unanswered question, not an error.
+  stubFetch((c) => (c.url.includes('/v1/events') ? json(201, { id: 84 }) : json(200, {})));
+  const { timeline: _omitted, ...withoutTimeline } = validLead();
+  const result = await handleLead(withoutTimeline);
+  check('an absent timeline key behaves like an unanswered one', () => {
+    assert.equal(result.status, 200);
+    assert.ok(eventsCall().body.person.tags.includes('Timeline: not specified'));
+  });
+}
+{
+  // Anything not on the list is a tampered or stale request. Reject it rather
+  // than writing an arbitrary string into the CRM as a tag.
+  stubFetch(() => json(201, { id: 83 }));
+  const result = await handleLead(validLead({ timeline: 'whenever I feel like it' }));
+  check('an unrecognised timeline is rejected before any API call', () => {
+    assert.equal(result.status, 400);
+    assert.match(result.body.message, /selling timeline/);
+    assert.equal(calls.length, 0);
+  });
 }
 
 /* ========================================================================== */

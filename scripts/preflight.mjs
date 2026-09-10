@@ -39,6 +39,47 @@ const EXPECTED = [
 const missingRequired = REQUIRED.filter(([p]) => !exists(p));
 const missingExpected = EXPECTED.filter(([p]) => !exists(p));
 
+/*
+ * Compiled JavaScript must never sit beside the TypeScript sources under api/.
+ * Vercel compiles api/lead.ts to api/lead.js at deploy time; a lead.js already
+ * present in the repo is a stale copy that wins, and it will keep serving old
+ * code (or an old, broken import specifier) no matter what the .ts file says.
+ */
+const strayCompiled = ['api', 'netlify/functions']
+  .filter((dir) => exists(dir))
+  .flatMap((dir) =>
+    fs
+      .readdirSync(rel(dir), { recursive: true })
+      .filter((f) => typeof f === 'string' && f.endsWith('.js'))
+      .map((f) => path.posix.join(dir, f.split(path.sep).join('/'))),
+  );
+
+if (strayCompiled.length) {
+  console.error(`
+  ────────────────────────────────────────────────────────────────────────
+  BUILD STOPPED — compiled JavaScript found alongside the function sources
+  ────────────────────────────────────────────────────────────────────────
+
+  Found:
+
+${strayCompiled.map((f) => `    ${f}`).join('\n')}
+
+  The host compiles api/*.ts itself. A .js file checked in here shadows the
+  TypeScript source, so the deployed function is whatever that stale file
+  contains — not the code in this repo.
+
+  Delete them and make sure they stay out:
+
+    rm ${strayCompiled.join(' ')}
+    git rm --cached ${strayCompiled.join(' ')}   # if they were committed
+
+  .gitignore already excludes them.
+
+  ────────────────────────────────────────────────────────────────────────
+`);
+  process.exit(1);
+}
+
 if (missingRequired.length) {
   const list = missingRequired.map(([p, why]) => `    ${p.padEnd(32)} ${why}`).join('\n');
   console.error(`

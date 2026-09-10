@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { COPY, PAGE2_BACKGROUND } from '@/config';
+import { COPY, PAGE2_BACKGROUND, TIMELINE_OPTIONS } from '@/config';
 import {
   formatPhone,
   validateContact,
@@ -7,7 +7,7 @@ import {
   type LeadDraft,
 } from '@/lib/validation';
 import { Field } from './Field';
-import { AlertIcon, ArrowLeftIcon, HomeIcon } from './Icons';
+import { AlertIcon, ArrowLeftIcon, CheckIcon, HomeIcon } from './Icons';
 import logo from '@/assets/logo-legacy-built.png';
 
 type Props = {
@@ -60,7 +60,11 @@ export function StepContact({
 
     const firstBad = Object.keys(found)[0];
     if (firstBad) {
-      const el = document.getElementById(firstBad);
+      // The timeline is a radio group, not an input — its focusable anchor is
+      // the fieldset, so the id has to be translated before we look it up.
+      const el = document.getElementById(
+        firstBad === 'timeline' ? 'timeline-group' : firstBad,
+      );
       el?.focus?.();
       el?.scrollIntoView({ block: 'center', behavior: 'smooth' });
       return;
@@ -184,6 +188,48 @@ export function StepContact({
             error={errors.phone}
             onChange={(e) => patch({ phone: formatPhone(e.target.value) })}
           />
+
+          {/*
+            The one qualifying question. Radios rather than a <select> because a
+            native select on mobile opens a picker wheel and hides the options
+            until tapped; these are visible, thumb-sized (56px) targets that
+            answer in one tap. Optional by design — see TIMELINE_OPTIONS.
+          */}
+          <fieldset
+            className="timeline"
+            id="timeline-group"
+            tabIndex={-1}
+            data-invalid={errors.timeline ? 'true' : undefined}
+          >
+            <legend className="timeline__legend">
+              {COPY.timelineLabel}{' '}
+              <span className="timeline__optional">{COPY.timelineOptionalNote}</span>
+            </legend>
+
+            <div className="timeline__options">
+              {TIMELINE_OPTIONS.map((option) => {
+                const selected = draft.timeline === option.value;
+                return (
+                  <label
+                    key={option.value}
+                    className="choice"
+                    data-selected={selected}
+                    data-wide={'wide' in option ? 'true' : undefined}
+                  >
+                    <input
+                      type="radio"
+                      name="timeline"
+                      value={option.value}
+                      checked={selected}
+                      onChange={() => patch({ timeline: option.value })}
+                    />
+                    <CheckIcon className="choice__check" size={17} />
+                    <span>{option.label}</span>
+                  </label>
+                );
+              })}
+            </div>
+          </fieldset>
 
           {submitError && (
             <div className="submit-error" ref={errorRef} role="alert">

@@ -43,6 +43,7 @@ export type LeadPayload = {
   lastName?: unknown;
   email?: unknown;
   phone?: unknown;
+  timeline?: unknown;
   source?: unknown;
   attribution?: unknown;
 };
@@ -53,6 +54,23 @@ export type CoreResult = {
 };
 
 const EMAIL_RE = /^[^\s@]+@[^\s@.]+(\.[^\s@.]+)+$/;
+
+/**
+ * The only selling-timeline values accepted. Must stay in step with
+ * TIMELINE_OPTIONS in src/config.ts.
+ *
+ * The empty string is a member on purpose: the question is optional on the
+ * form, so "no answer" is a valid answer. Anything else is rejected rather
+ * than passed through, so nothing arbitrary from a tampered request can end up
+ * written into the CRM as a tag.
+ */
+const ALLOWED_TIMELINES = new Set([
+  '',
+  '0-3 months',
+  '3-6 months',
+  '6-12 months',
+  'Just curious about my home value',
+]);
 
 function str(v: unknown, max: number): string {
   return typeof v === 'string' ? v.trim().slice(0, max) : '';
@@ -99,6 +117,7 @@ export async function handleLead(raw: LeadPayload): Promise<CoreResult> {
     lastName: str(raw.lastName, 80),
     email: str(raw.email, 200),
     phone: str(raw.phone, 40),
+    timeline: str(raw.timeline, 60),
     /* What the visitor's ad click said. Recorded in the note and as a tag —
        NOT used as the FUB source, which identifies the landing page itself. */
     adSource: str(raw.source, 120),
@@ -110,6 +129,7 @@ export async function handleLead(raw: LeadPayload): Promise<CoreResult> {
   if (!lead.lastName) problems.push('last name');
   if (!EMAIL_RE.test(lead.email)) problems.push('email address');
   if (lead.phone.replace(/\D/g, '').length < 10) problems.push('phone number');
+  if (!ALLOWED_TIMELINES.has(lead.timeline)) problems.push('selling timeline');
 
   if (problems.length) {
     return {
@@ -148,8 +168,21 @@ export async function handleLead(raw: LeadPayload): Promise<CoreResult> {
   const source = process.env.FUB_SOURCE || landingHost || 'Wil & Liz Seller Landing Page';
   const system = process.env.FUB_SYSTEM || 'Wil & Liz Seller Landing Page';
 
+  /*
+   * A visitor who picked the fourth option has said outright that they are not
+   * selling. Tagging that distinctly matters more than the tidiness of one
+   * uniform "Timeline: …" tag: it keeps the team from working a lead that has
+   * already told them it is not a lead yet.
+   */
+  const justCurious = lead.timeline === 'Just curious about my home value';
+
   /* Tags the team can build smart lists from. */
   const tags = ['Home Value Lead', 'Landing Page'];
+  if (lead.timeline) {
+    tags.push(justCurious ? 'Curious — not selling yet' : `Timeline: ${lead.timeline}`);
+  } else {
+    tags.push('Timeline: not specified');
+  }
   if (lead.adSource) tags.push(`Source: ${lead.adSource}`);
   if (process.env.FUB_ASSIGNED_TAG) tags.push(process.env.FUB_ASSIGNED_TAG);
 
@@ -157,6 +190,7 @@ export async function handleLead(raw: LeadPayload): Promise<CoreResult> {
     `Home value request from the Wil & Liz landing page.`,
     ``,
     `Property address: ${lead.propertyAddress}`,
+    `Selling timeline: ${lead.timeline || 'not specified'}`,
     ...(attributionLines.length ? ['', 'Marketing attribution:', ...attributionLines] : []),
   ].join('\n');
 
@@ -166,6 +200,13 @@ export async function handleLead(raw: LeadPayload): Promise<CoreResult> {
    * email or phone — those stay exactly what the visitor typed.
    */
   const noteBody = [
+    /* Leads with the loudest signal first: how soon they intend to move. */
+    ...(justCurious
+      ? ['Timeline: NOT SELLING — just curious about the home value.']
+      : lead.timeline
+        ? [`Timeline: ${lead.timeline}`]
+        : ['Timeline: not specified.']),
+    ``,
     `Additional information:`,
     `Property address: ${lead.propertyAddress}`,
     `Name: ${lead.firstName} ${lead.lastName}`,

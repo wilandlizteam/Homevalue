@@ -4,7 +4,9 @@
  * redirects /api/lead to this function so the frontend is unchanged.
  */
 
-import { handleLead, type LeadPayload } from '../../api/_lib/lead-core.ts';
+// `.js`, not `.ts` — see the note in api/lead.ts. The specifier must name the
+// compiled file, because the host runs compiled JS and leaves specifiers alone.
+import { handleLead, type LeadPayload } from '../../api/_lib/lead-core.js';
 
 export default async function handler(request: Request): Promise<Response> {
   if (request.method !== 'POST') {

@@ -10,9 +10,18 @@
  * dragged five known vulnerabilities and a large install into every deploy.
  * These structural types describe exactly what this handler touches, so they
  * satisfy the runtime's actual contract without the dependency.
+ *
+ * NOTE ON THE IMPORT BELOW — it must end in `.js`, not `.ts`.
+ * The host compiles this file to api/lead.js and runs THAT, but it does not
+ * rewrite import specifiers. So the specifier has to name the file as it will
+ * exist at runtime (lead-core.js), not as it exists in the repo
+ * (lead-core.ts). TypeScript understands this and resolves `.js` back to the
+ * `.ts` source when type-checking. Writing `./_lib/lead-core.ts` here type-
+ * checks fine and then fails in production with
+ *   ERR_MODULE_NOT_FOUND: Cannot find module '/var/task/api/_lib/lead-core.ts'
  */
 
-import { handleLead, type LeadPayload } from './_lib/lead-core.ts';
+import { handleLead, type LeadPayload } from './_lib/lead-core.js';
 
 type NodeRequest = {
   method?: string;

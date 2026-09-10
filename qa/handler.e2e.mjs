@@ -7,16 +7,26 @@
  * extensionless relative import that made the serverless function fail to load
  * with ERR_MODULE_NOT_FOUND passed every test and every typecheck.
  *
- * This suite closes that hole: it imports the REAL api/lead.ts, serves it over
- * REAL HTTP alongside the REAL production build, and drives the whole funnel in
- * a browser. Only the outbound Follow Up Boss call is stubbed, so no key is
- * used and no lead is ever created.
+ * WHY IT COMPILES FIRST: loading api/lead.ts directly (with Node's type
+ * stripping) is NOT what production does, and the difference is exactly where
+ * the second ERR_MODULE_NOT_FOUND came from. Vercel compiles every .ts under
+ * api/ to .js, leaves the import specifiers untouched, and runs the compiled
+ * output. So this suite compiles api/ the same way and loads the EMITTED
+ * api/lead.js. A specifier that resolves in the repo but not in /var/task now
+ * fails here, before it can fail on the deployed site.
+ *
+ * Everything downstream is real too: the compiled function is served over real
+ * HTTP alongside the real production build and driven in a browser. Only the
+ * outbound Follow Up Boss call is stubbed, so no key is used and no lead is
+ * ever created.
  *
  * Run:  node --experimental-strip-types qa/handler.e2e.mjs
  */
 import { chromium } from 'playwright';
+import { execFileSync } from 'node:child_process';
 import http from 'node:http';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
@@ -41,22 +51,70 @@ globalThis.fetch = async (url, init) => {
   });
 };
 
-/* ---- THE POINT OF THIS FILE: load the real function ----------------------- */
+/* ---- THE POINT OF THIS FILE ----------------------------------------------- */
+/*
+ * Step 1: compile the functions exactly as the host does — .ts in, .js out,
+ * import specifiers left alone. The output directory stands in for /var/task.
+ */
+const OUT = fs.mkdtempSync(path.join(os.tmpdir(), 'fn-compile-'));
+try {
+  execFileSync(
+    'npx',
+    ['--no-install', 'tsc',
+     'api/lead.ts', 'netlify/functions/lead.ts',
+     // Named files on the command line, so tsconfig.json is deliberately not
+     // consulted: these options are the host's, not the site build's.
+     '--ignoreConfig',
+     '--outDir', OUT,
+     '--rootDir', '.',
+     '--module', 'nodenext', '--moduleResolution', 'nodenext',
+     '--target', 'ES2023', '--skipLibCheck', '--types', 'node'],
+    { cwd: ROOT, stdio: 'pipe' },
+  );
+  check('functions compile to JavaScript', true);
+} catch (error) {
+  const out = `${error.stdout ?? ''}${error.stderr ?? ''}`.trim().split('\n').slice(0, 4).join(' | ');
+  check('functions compile to JavaScript', false, out);
+  console.log(`  ✗ compilation failed\n    ${out}`);
+  process.exit(1);
+}
+// "type": "module" is what makes Node read the emitted .js as ESM, same as the
+// deployed package.json does.
+fs.writeFileSync(path.join(OUT, 'package.json'), '{"type":"module"}');
+
+/*
+ * Step 2: load the COMPILED function. This is the assertion that the previous
+ * two ERR_MODULE_NOT_FOUND deploys would both have failed.
+ */
 let handler;
 try {
-  ({ default: handler } = await import(path.join(ROOT, 'api/lead.ts')));
-  check('api/lead.ts loads as an ES module', typeof handler === 'function', typeof handler);
+  ({ default: handler } = await import(path.join(OUT, 'api/lead.js')));
+  check('compiled api/lead.js loads at runtime', typeof handler === 'function', typeof handler);
 } catch (error) {
-  check('api/lead.ts loads as an ES module', false, `${error.code}: ${error.message.split('\n')[0]}`);
-  console.log(`  ✗ api/lead.ts failed to load — ${error.code}\n    ${error.message.split('\n')[0]}`);
+  check('compiled api/lead.js loads at runtime', false, `${error.code}: ${error.message.split('\n')[0]}`);
+  console.log(`  ✗ the compiled function failed to load — ${error.code}\n    ${error.message.split('\n')[0]}`);
+  console.log('    This is the deploy-breaking class of bug. Check the import specifiers in api/.');
   process.exit(1);
 }
 try {
-  const mod = await import(path.join(ROOT, 'netlify/functions/lead.ts'));
-  check('netlify/functions/lead.ts loads as an ES module', typeof mod.default === 'function');
+  const mod = await import(path.join(OUT, 'netlify/functions/lead.js'));
+  check('compiled netlify/functions/lead.js loads at runtime', typeof mod.default === 'function');
 } catch (error) {
-  check('netlify/functions/lead.ts loads as an ES module', false, error.code);
+  check('compiled netlify/functions/lead.js loads at runtime', false,
+    `${error.code}: ${error.message.split('\n')[0]}`);
 }
+
+// Every relative import under api/ must name a file that will exist after
+// compilation. A ".ts" specifier type-checks and then 404s in production.
+const badSpecifiers = [];
+for (const file of ['api/lead.ts', 'api/_lib/lead-core.ts', 'netlify/functions/lead.ts']) {
+  const src = fs.readFileSync(path.join(ROOT, file), 'utf8');
+  for (const m of src.matchAll(/from\s+'(\.[^']*)'/g)) {
+    if (!m[1].endsWith('.js')) badSpecifiers.push(`${file} → ${m[1]}`);
+  }
+}
+check('every relative import in the functions ends in .js', badSpecifiers.length === 0,
+  badSpecifiers.join(', '));
 
 /* ---- serve the real build + the real function ----------------------------- */
 const MIME = {
@@ -146,6 +204,20 @@ await page.fill('#lastName', 'Ortiz');
 await page.fill('#email', 'dana.ortiz@example.com');
 await page.fill('#phone', '7145550142');
 
+/* ---- the timeline question ------------------------------------------------ */
+check('the timeline question is rendered on page 2',
+  (await page.locator('#timeline-group').count()) === 1);
+check('all four timeline options are offered',
+  (await page.locator('#timeline-group .choice').count()) === 4);
+check('the timeline is marked optional',
+  (await page.locator('.timeline__optional').textContent())?.trim() === 'Optional');
+check('the "just curious" option is full width',
+  (await page.locator('.choice[data-wide="true"]').count()) === 1);
+
+await page.locator('.choice', { hasText: '3–6 months' }).first().click();
+check('picking a timeline visibly selects it',
+  (await page.locator('.choice[data-selected="true"]').count()) === 1);
+
 // Arm the wait BEFORE clicking, so the response can never be missed.
 const leadResponse = page
   .waitForResponse((r) => r.url().includes('/api/lead'), { timeout: 12000 })
@@ -184,10 +256,11 @@ check('note posted to /v1/notes', !!note);
 check('note attached to the person id from the event', note?.body.personId === 4242);
 check('note carries the property address',
   /1420 Camino Real, Fullerton, CA 92835/.test(note?.body.body ?? ''));
-check('no timeline data reaches the CRM',
-  !/timeline/i.test(JSON.stringify(fubCalls)), 'timeline found in CRM payload');
-check('no timeline field is rendered on page 2',
-  (await page.locator('.choice, .timeline, #timeline-group').count()) === 0);
+check('the chosen timeline reaches the CRM as a tag',
+  ev?.body.person.tags?.includes('Timeline: 3-6 months'),
+  JSON.stringify(ev?.body.person.tags));
+check('the chosen timeline is spelled out in the note',
+  /Timeline: 3-6 months/.test(note?.body.body ?? ''), note?.body.body);
 
 /* ---- pixel ---------------------------------------------------------------- */
 const pixel = await page.evaluate(() => (window.fbq?.queue ?? []).map((a) => [...a].slice(0, 2)));
@@ -200,6 +273,7 @@ check('no unexpected page errors', realErrors.length === 0, realErrors.join(' | 
 
 await browser.close().catch(() => {});
 server.close();
+fs.rmSync(OUT, { recursive: true, force: true });
 
 for (const r of results) {
   console.log(`${r.pass ? '  ✓' : '  ✗'} ${r.name}${r.detail ? '  → ' + r.detail : ''}`);

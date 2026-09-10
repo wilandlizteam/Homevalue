@@ -54,9 +54,9 @@ whole flow locally.
 | `npm run typecheck` | Frontend types only |
 | `npm run typecheck:server` | Serverless function types (not part of the build) |
 | `npm run lint` | Lint `src/` |
-| `npm run qa` | Build, then all three test suites (236 assertions) |
-| `npm run test:fub` | Follow Up Boss integration tests (46, no network) |
-| `npm run test:handler` | Loads the real `/api/lead` function and drives the funnel (21) |
+| `npm run qa` | Build, then all three test suites (262 assertions) |
+| `npm run test:fub` | Follow Up Boss integration tests (53, no network) |
+| `npm run test:handler` | Compiles the functions, loads the compiled `/api/lead`, drives the funnel (28) |
 | `node scripts/build-preview.mjs` | Single-file `preview.html` for review/email |
 
 The QA suite drives a real browser. Playwright is deliberately **not** a
@@ -165,6 +165,30 @@ compiles. The serverless functions are type-checked separately via
 host at deploy time, not by `vite build`, so keeping them out of the site build
 means a problem with them can never take the landing page down.
 
+**Relative imports inside `api/` must end in `.js`.** This looks wrong next to a
+`.ts` file, and it is the single easiest way to break a deploy while every local
+check still passes. Vercel compiles `api/lead.ts` into `api/lead.js` and runs
+that, but it does **not** rewrite import specifiers — so the specifier has to
+name the file as it will exist at runtime, not as it exists in the repo:
+
+```ts
+import { handleLead } from './_lib/lead-core.js';   // ✅ compiles to a real path
+import { handleLead } from './_lib/lead-core.ts';   // ❌ ERR_MODULE_NOT_FOUND in production
+import { handleLead } from './_lib/lead-core';      // ❌ ERR_MODULE_NOT_FOUND in production
+```
+
+TypeScript understands the convention and resolves `.js` back to the `.ts`
+source, so nothing is lost at type-check time. Three things now enforce it:
+`tsconfig.server.json` uses `"moduleResolution": "nodenext"` (Node's own
+resolver, so a bad specifier is a compile error), `npm run test:handler`
+compiles the functions and loads the *compiled* output, and that suite also
+greps the sources for any relative import that does not end in `.js`.
+
+**No compiled `.js` may sit beside the sources.** `api/**/*.js` and
+`netlify/functions/*.js` are gitignored, and the preflight step fails the build
+if one appears — a checked-in `api/lead.js` would shadow the TypeScript source
+and get deployed in its place.
+
 ### Meta Pixel
 
 The pixel ID lives in `src/config.ts` and is referenced from one file
@@ -201,10 +225,19 @@ Two calls, in order:
    - `source` identifies this landing page (its hostname, or `FUB_SOURCE`).
    - `system` is `Wil & Liz Seller Landing Page`.
    - `type` is `Seller Inquiry`.
-2. **`POST /v1/notes`** attaches everything else to that contact: the property
-   address, the contact details as submitted, the ad source, and the UTM/fbclid
-   attribution. This is why none of it has to be crammed into a name or phone
-   field.
+   - `tags` carry the qualifying detail: `Timeline: 0-3 months` (or the answer
+     given), `Timeline: not specified` when the question was skipped, or
+     `Curious — not selling yet` for the fourth option, plus the ad source.
+     Build smart lists on these.
+2. **`POST /v1/notes`** attaches everything else to that contact: the selling
+   timeline spelled out at the top, the property address, the contact details as
+   submitted, the ad source, and the UTM/fbclid attribution. This is why none of
+   it has to be crammed into a name or phone field.
+
+A visitor who chooses *"I'm not interested in selling. I'm just curious about my
+home value."* is deliberately marked twice — its own tag and `Timeline: NOT
+SELLING` as the first line of the note — so nobody works it as a live listing
+appointment.
 
 The note is best-effort. The lead is already delivered by the time it is
 attempted, so a failed note is logged server-side and the visitor still sees the
@@ -324,14 +357,17 @@ it communicates that something is happening.
 
 ## Test coverage
 
-### `npm run test:fub` — the CRM integration, 48 assertions
+### `npm run test:fub` — the CRM integration, 53 assertions
 
 Runs `api/_lib/lead-core.ts` directly with `fetch` replaced, so it can assert the
 exact request bodies without touching the real API or creating a single test
 lead. It covers: the four contact fields map to `firstName` / `lastName` /
-`emails` / `phones` exactly as typed and nothing else; **no timeline data reaches
-the CRM anywhere** — not in the event, the tags or the note — even if a stale
-client still sends the field; the event goes to `/v1/events` and never
+`emails` / `phones` exactly as typed and nothing else; each of the three
+timelines is accepted and tagged; **"just curious" gets its own
+`Curious — not selling yet` tag and leads the note with `NOT SELLING`**, so the
+team never works it as a live seller; an unanswered or absent timeline is
+recorded as `not specified` rather than rejected; a value that is not on the
+list is refused before any network call; the event goes to `/v1/events` and never
 `/v1/people`; Basic auth is used and the key never reaches a URL; the note is
 attached to the person id from the event response, after the event, carrying the
 property address and the rest of the step-2 detail; **no note is created when the

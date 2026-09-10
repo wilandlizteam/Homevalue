@@ -6,6 +6,8 @@ export type LeadDraft = {
   lastName: string;
   email: string;
   phone: string;
+  /** One of TIMELINE_OPTIONS' values, or '' — the question is optional. */
+  timeline: string;
 };
 
 export type FieldErrors = Partial<Record<keyof LeadDraft, string>>;
