@@ -59,6 +59,9 @@ for (const vp of VIEWPORTS) {
   // this exercises our actual implementation; calls made before the script
   // loads sit in fbq.queue, which is what we read.
   await page.route('**/connect.facebook.net/**', (r) => r.abort());
+  // Vercel serves /_vercel/insights/script.js only on a deployment, so it 404s
+  // here. Blocked deliberately, like the two above.
+  await page.route('**/_vercel/insights/**', (r) => r.abort());
   const pixel = () => page.evaluate(() => (window.fbq?.queue ?? []).map((a) => [...a]));
 
   let leadPosts = [];
@@ -442,6 +445,9 @@ for (const vp of VIEWPORTS) {
   const ctx = await browser.newContext({ viewport: { width: 375, height: 667 }, isMobile: true, hasTouch: true });
   const page = await ctx.newPage();
   await page.route('**/connect.facebook.net/**', (r) => r.abort());
+  // Vercel serves /_vercel/insights/script.js only on a deployment, so it 404s
+  // here. Blocked deliberately, like the two above.
+  await page.route('**/_vercel/insights/**', (r) => r.abort());
   await page.goto(BASE);
   const small = await page.evaluate(() =>
     [...document.querySelectorAll('button, input, a, label.choice')]
@@ -465,6 +471,9 @@ for (const [label, w, h] of [['mobile', 375, 667], ['desktop', 1440, 900]]) {
   const ctx = await browser.newContext({ viewport: { width: w, height: h }, isMobile: w < 500, hasTouch: w < 500 });
   const page = await ctx.newPage();
   await page.route('**/connect.facebook.net/**', (r) => r.abort());
+  // Vercel serves /_vercel/insights/script.js only on a deployment, so it 404s
+  // here. Blocked deliberately, like the two above.
+  await page.route('**/_vercel/insights/**', (r) => r.abort());
   await page.goto(BASE);
   await page.waitForSelector('.masthead__logo');
   await page.waitForFunction(() => {

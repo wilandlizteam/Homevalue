@@ -1,24 +1,19 @@
 # Wil & Liz Seller Funnel — file manifest
-# Generated 2026-09-10T19:18:43Z
+# Generated 2026-09-10T21:03:21Z
 #
 # Verify a fresh checkout has everything:
 #     shasum -a 256 -c MANIFEST.txt --quiet && echo ALL FILES OK
 # Or just count:
-#     git ls-files | wc -l     # expect 48 (incl. MANIFEST.txt)
+#     git ls-files | wc -l     # expect 43 (incl. MANIFEST.txt)
 #
-6ff3bff05d5382ff57dfdb6f4e0db30c1d3dbb8c08920746c8eb7b26da4fc496  .env.example
-df743931637142157a99ba651778015a3b62e72b8a5a0fc14177cbabc1043b46  .gitignore
-f14b4987904bcb5814e4459a057ed4d20f58a633152288a761214dcd28780b56  .nvmrc
-b4d344818a1e1bf43997e4744a9153c8eef770c98b58229cd86363dabb85ded4  .oxlintrc.json
-7f38595af3bde251f578e52ee43e72858ae123000a9afa0ea1b07fff0d2cad4d  .vercelignore
 f4c0312921b9d47e7a366475fc94e5bc17125a3b02b031864b9de436e3089036  README.md
 448c2c5fd784b044baaf9419759319948dbd902b92e94908f6dacc3777b9cb8e  api/_lib/lead-core.ts
 b1c66ae6d82c9d0536bb8d5dc8bb0c6ab0f79ec8b8ae98c5760cb6ac624f9aec  api/lead.ts
 ba84fd0c9ef270e4d05a7d380e9c57798d499c54f603e2e07bef0c1df6e67851  index.html
 2426c72d35b5242e81de732260d089280fa76d254b8d57e33218f1be2b832e4a  netlify.toml
 30528ae660f986463a1726386380a2d5c2958c7927b06981e5b8e3236507f0f0  netlify/functions/lead.ts
-954f70c69f54b522777eb2d40335467930cb8bed0024bcdfb3a56e72c2b60d1f  package-lock.json
-9c1629bf0999c37c70f39ee55be5e47e42a4ed43e03ea6f766b762ab58fd18de  package.json
+11010f8380c6a04b602361b23c73e2302da625f57f1d97f8bf7e7ea0628ecf0a  package-lock.json
+d9cf50c9ea47d593b4c2325e8ee48b7da12a6f3d1cbc437a8e2bf9e5c77abb40  package.json
 190c877db466995bf1482f4a16abd06e04a89ede3119341e2a86ff96e1737b27  postcss.config.js
 113f3f069c120d4b4a4ed4a26cc365373347ca8833d5e8b9464f5154fa9399b3  public/dining-room-sm.webp
 311380abe2ccf7b9a75ee2f6d1a84d4cbaeb304874b5f7ec10b709a75422d83d  public/dining-room.webp
@@ -26,8 +21,8 @@ ceab7cd665c24a76ce15bf6b3547ce9da75f8116deea49580e023d4560a2cd2a  public/favicon
 493f7d992be2dfb094c95765211bc29a04b18ab8868c940d0a0becd8f2b75418  public/hero-home-sm.webp
 893b6c4f6d26e004f1ae44cd02cadec6414aa893cf50c99acd78d50038222c77  public/hero-home.webp
 dc50acfdd9f975581a0f93939b2977e245efce8fb42e9de966d40213245de488  public/og-image.jpg
-2f11eb613e3e3349102ff4de400307d42a1044fb345be89feb6905b849978d3d  qa/funnel.qa.mjs
-90b18cb5ceb6c47380560776a819214cd18f6079772570eabcd1eead25fc08a9  qa/handler.e2e.mjs
+865cc22dc1a39fd17d55fafa70a8ec7bcece94bbbcc12b26ff3b41d0b660a878  qa/funnel.qa.mjs
+5d60019aa6d9bc3551258b98e84400a2d383e4845da065c551051c92b9a1cb4e  qa/handler.e2e.mjs
 026e6b37f32a14342ad607daf60d13c6d1a8afa3ccd4e347a2a75a2c20bdbbc4  qa/lead-core.test.mjs
 8c5a4783c41e11308401acf47c94da3ba4973705acb6bff3f0cac752e925f5f6  scripts/build-preview.mjs
 977c543d9154c0d5c4f9813efecca548372fd8b1e5a7ceb4f30592ee300a2d69  scripts/preflight.mjs
@@ -47,7 +42,7 @@ c156cf5206f32601aee568dcab13643efa34a579727d43ab51c87f1f470ded3b  src/index.css
 816484e5d4e64c92464b3cb92c4f64542f9edc7a88a86f0755d88ee400d64f8f  src/lib/pixel.ts
 0f612c89b06bdd807c98c3cd9ef041b94212273fa84ddb80a9e65d93c74da6cd  src/lib/submitLead.ts
 ffecf73bd9747415381e2b717accb644765f49777bf209bbf0b8c7ab73a2e4d0  src/lib/validation.ts
-8c9f8791b7df941efb1b1e10fdd916ca34d52ecc342f90e9c5bc742fc8628425  src/main.tsx
+b42238fdfeeda9ffc3a69909c6304198fbbdf606b23141f450309994666b003d  src/main.tsx
 8bdbea8915f15af5bee8542f39528cc144a6d64f783ba4f607ed143e5066af6d  tailwind.config.js
 1e8f4ad1ca4f39a0966901e8c5692ffb732ca61f8cb519562d9cfb4f3c71eb97  tsconfig.json
 e4f9bd7ef72d9d223b2ab32c5439db307456357c84ee89edab8b88e0dcce2d67  tsconfig.server.json

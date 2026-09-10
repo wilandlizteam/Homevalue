@@ -16,6 +16,7 @@
     "test:handler": "node --experimental-strip-types qa/handler.e2e.mjs"
   },
   "dependencies": {
+    "@vercel/analytics": "^2.0.1",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
   },
@@ -31,7 +32,7 @@
     "typescript": "~6.0.2",
     "vite": "^8.2.2"
   },
-  "description": "Wil & Liz Team \u2014 Southern California seller lead funnel",
+  "description": "Wil & Liz Team — Southern California seller lead funnel",
   "engines": {
     "node": ">=20.0.0"
   }

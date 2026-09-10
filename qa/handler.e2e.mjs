@@ -182,6 +182,9 @@ page.on('console', (m) => m.type() === 'error' && pageErrors.push(m.text()));
 // Blocked deliberately: these are the only expected network failures.
 await page.route('**/connect.facebook.net/**', (r) => r.abort());
 await page.route('**/fonts.googleapis.com/**', (r) => r.abort());
+// Vercel serves /_vercel/insights/script.js only on a deployment, so it 404s
+// here. Blocked deliberately, like the two above.
+await page.route('**/_vercel/insights/**', (r) => r.abort());
 
 await page.goto(`${BASE}/?utm_source=facebook&utm_campaign=seller_q4&fbclid=IwAR_probe`);
 await page.waitForSelector('h1');
