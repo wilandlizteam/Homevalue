@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { COPY, PAGE2_BACKGROUND, TIMELINE_OPTIONS } from '@/config';
+import { COPY, PAGE2_BACKGROUND } from '@/config';
 import {
   formatPhone,
   validateContact,
@@ -7,7 +7,7 @@ import {
   type LeadDraft,
 } from '@/lib/validation';
 import { Field } from './Field';
-import { AlertIcon, ArrowLeftIcon, CheckIcon, HomeIcon } from './Icons';
+import { AlertIcon, ArrowLeftIcon, HomeIcon } from './Icons';
 import logo from '@/assets/logo-legacy-built.png';
 
 type Props = {
@@ -60,9 +60,7 @@ export function StepContact({
 
     const firstBad = Object.keys(found)[0];
     if (firstBad) {
-      const el = document.getElementById(
-        firstBad === 'timeline' ? 'timeline-group' : firstBad,
-      );
+      const el = document.getElementById(firstBad);
       el?.focus?.();
       el?.scrollIntoView({ block: 'center', behavior: 'smooth' });
       return;
@@ -186,50 +184,6 @@ export function StepContact({
             error={errors.phone}
             onChange={(e) => patch({ phone: formatPhone(e.target.value) })}
           />
-
-          <fieldset className="timeline" data-invalid={errors.timeline ? 'true' : 'false'}>
-            <legend className="timeline__legend">
-              {COPY.timelineLabel}{' '}
-              <span className="timeline__optional">{COPY.timelineOptionalNote}</span>
-            </legend>
-
-            <div
-              className="timeline__options"
-              id="timeline-group"
-              role="radiogroup"
-              aria-labelledby={undefined}
-              aria-describedby={errors.timeline ? 'timeline-error' : undefined}
-            >
-              {TIMELINE_OPTIONS.map((opt) => {
-                const selected = draft.timeline === opt.value;
-                return (
-                  <label
-                    key={opt.value}
-                    className="choice"
-                    data-selected={selected ? 'true' : 'false'}
-                    data-wide={'wide' in opt && opt.wide ? 'true' : 'false'}
-                  >
-                    <input
-                      type="radio"
-                      name="timeline"
-                      value={opt.value}
-                      checked={selected}
-                      onChange={() => patch({ timeline: opt.value })}
-                    />
-                    <CheckIcon size={17} className="choice__check" />
-                    <span>{opt.label}</span>
-                  </label>
-                );
-              })}
-            </div>
-
-            {errors.timeline && (
-              <p className="field__error" id="timeline-error" role="alert">
-                <AlertIcon />
-                <span>{errors.timeline}</span>
-              </p>
-            )}
-          </fieldset>
 
           {submitError && (
             <div className="submit-error" ref={errorRef} role="alert">

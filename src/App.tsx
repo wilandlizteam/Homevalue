@@ -16,7 +16,6 @@ const EMPTY: LeadDraft = {
   lastName: '',
   email: '',
   phone: '',
-  timeline: '',
 };
 
 export default function App() {

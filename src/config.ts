@@ -41,9 +41,6 @@ export const COPY = {
   step2Headline: 'Where should we send your personalized market analysis?',
   step2Sub:
     "We'll use this information to send your personalized home value and market analysis.",
-  timelineLabel: 'How soon are you looking to sell your home?',
-  /* Optional question — the visitor can submit without answering. */
-  timelineOptionalNote: 'Optional',
   step2Cta: 'GET MY HOME VALUE',
   /* Broad, low-pressure consent line. Deliberately not about selling. */
   consent:
@@ -52,25 +49,6 @@ export const COPY = {
   successBody:
     'Thanks for reaching out. Wil & Liz Team will be in touch shortly to discuss your home and your selling goals.',
 } as const;
-
-/**
- * The timeline question is OPTIONAL — see validateContact() in
- * src/lib/validation.ts and the matching server rule in api/_lib/lead-core.ts.
- * A visitor can submit without choosing one.
- *
- * `wide: true` puts an option on its own full-width row, for labels too long to
- * sit in the three-across grid.
- */
-export const TIMELINE_OPTIONS = [
-  { value: '0-3 months', label: '0–3 months' },
-  { value: '3-6 months', label: '3–6 months' },
-  { value: '6-12 months', label: '6–12 months' },
-  {
-    value: 'Just curious about my home value',
-    label: "I'm not interested in selling. I'm just curious about my home value.",
-    wide: true,
-  },
-] as const;
 
 /**
  * ---------------------------------------------------------------------------
@@ -142,7 +120,7 @@ export const DISCLAIMER = {
   affiliation: 'Zillow & Opendoor Premier Partners | ehomes',
   licensees: [
     { name: 'Liz Lee', dre: 'DRE 01176959' },
-    { name: 'Wil Olguin', dre: 'DRE 0115760' },
+    { name: 'Wil Olguin', dre: 'DRE 01157603' },
   ],
   /** Add brokerage legal name + brokerage DRE number here when confirmed. */
   brokerageLine: '',

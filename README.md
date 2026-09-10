@@ -4,7 +4,7 @@ A two-step seller lead-generation site for Southern California homeowners, built
 for paid traffic from Facebook and Instagram.
 
 ```
-Ad click → address → contact + timeline → secure backend → Follow Up Boss → Meta Lead event → confirmation
+Ad click → address → name, email, phone → secure backend → Follow Up Boss → Meta Lead event → confirmation
 ```
 
 ---
@@ -15,10 +15,6 @@ Ad click → address → contact + timeline → secure backend → Follow Up Bos
 treat it as exposed: generate a new one in Follow Up Boss (Admin → API), delete
 the old one, and use the new key in the environment variable below. Nothing in
 this repository contains a key, and nothing should.
-
-**Verify Wil's DRE number.** The footer currently reads `DRE 0115760` — seven
-digits. California DRE licence numbers are eight (Liz's, `01176959`, is eight).
-Confirm the correct number and update `DISCLAIMER` in `src/config.ts`.
 
 ---
 
@@ -58,9 +54,9 @@ whole flow locally.
 | `npm run typecheck` | Frontend types only |
 | `npm run typecheck:server` | Serverless function types (not part of the build) |
 | `npm run lint` | Lint `src/` |
-| `npm run qa` | Build, then all three test suites (248 assertions) |
-| `npm run test:fub` | Follow Up Boss integration tests (48, no network) |
-| `npm run test:handler` | Loads the real `/api/lead` function and drives the funnel (19) |
+| `npm run qa` | Build, then all three test suites (236 assertions) |
+| `npm run test:fub` | Follow Up Boss integration tests (46, no network) |
+| `npm run test:handler` | Loads the real `/api/lead` function and drives the funnel (21) |
 | `node scripts/build-preview.mjs` | Single-file `preview.html` for review/email |
 
 The QA suite drives a real browser. Playwright is deliberately **not** a
@@ -147,7 +143,7 @@ src/
   App.tsx                ← step state machine; the only place trackLead() is called
   components/
     StepAddress.tsx      ← step 1 hero + address
-    StepContact.tsx      ← step 2 contact + timeline
+    StepContact.tsx      ← step 2 contact fields
     StepSuccess.tsx      ← confirmation
     Field.tsx            ← labelled input with accessible error reporting
     Chrome.tsx           ← masthead + brokerage/licence footer
@@ -205,10 +201,10 @@ Two calls, in order:
    - `source` identifies this landing page (its hostname, or `FUB_SOURCE`).
    - `system` is `Wil & Liz Seller Landing Page`.
    - `type` is `Seller Inquiry`.
-2. **`POST /v1/notes`** attaches everything else to that contact: the selling
-   timeline, the property address, the contact details as submitted, the ad
-   source, and the UTM/fbclid attribution. This is why the timeline never has to
-   be crammed into a name or phone field.
+2. **`POST /v1/notes`** attaches everything else to that contact: the property
+   address, the contact details as submitted, the ad source, and the UTM/fbclid
+   attribution. This is why none of it has to be crammed into a name or phone
+   field.
 
 The note is best-effort. The lead is already delivered by the time it is
 attempted, so a failed note is logged server-side and the visitor still sees the
@@ -228,10 +224,7 @@ Meta `Lead` event does **not** fire.
    and check it lands where you expect.
 2. Whether you want a lead flow / round-robin assignment rule for this source.
    Leads arrive with source `Facebook / Instagram Ad` (or the UTM source) and
-   tags `Home Value Lead`, `Landing Page`, and one of `Timeline: …`,
-   `Curious — not selling yet`, or `Timeline: not specified`. Those three make it
-   easy to build separate smart lists for ready-to-list sellers, future sellers,
-   and pure home-value enquiries.
+   tags `Home Value Lead`, `Landing Page`, and `Source: <ad campaign>`.
 
 The retry guard in `api/_lib/lead-core.ts` is in-memory, which catches the
 realistic case — a visitor tapping again after a timeout on a warm function
@@ -245,11 +238,6 @@ Vercel KV or Upstash Redis keyed on the same `submissionId`.
 Almost everything an editor touches is in `src/config.ts`:
 
 - `COPY` — headline, subtitle, labels, CTAs, consent line, success message
-- `TIMELINE_OPTIONS` — the timeline choices. **The question is optional**: a
-  visitor can submit without answering. `validateContact()` in
-  `src/lib/validation.ts` and `ALLOWED_TIMELINES` in `api/_lib/lead-core.ts`
-  both have to agree, or the lead 400s. An option marked `wide: true` gets its
-  own full-width row.
 - `EHOMES_LOGO` — the ehomes mark shown in the footer's "powered by" credit
 - `DISCLAIMER` — team name, affiliation, licensees, and two empty slots for
   brokerage legal name / DRE and any extra required language
@@ -268,6 +256,10 @@ tags near the top of `index.html` to match. The step 2 photo is the same but at
 **Step 1** is the cinematic hero: the exterior photograph runs full bleed, a
 single frosted glass card carries the eyebrow, headline, subtitle and address
 field, and Wil and Liz stand at the right.
+
+**Step 2** collects only first name, last name, email and phone. The property
+address from step 1 is carried forward and submitted with the lead; the visitor
+never re-types it.
 
 **Step 2** is the interior. No portrait, no masthead — the dining-room
 photograph fills the frame and the official logo in the upper right is the only
@@ -311,9 +303,9 @@ the QA suite asserts each rendered aspect ratio matches its source file.
 ### Tone
 
 The page is positioned as a home-value and market-analysis request, not a
-listing pitch. Step 2 asks where to send the analysis, the timeline question is
-optional and includes an explicitly not-selling answer, and the consent line is
-about real estate goals rather than selling. Step 1's headline and address
+listing pitch. Step 2 asks where to send the analysis and collects only the four
+contact fields, and the consent line is about real estate goals rather than
+selling. Step 1's headline and address
 question are still sell-oriented and were left as approved — see the note in the
 project handover if that positioning is revisited.
 
@@ -321,8 +313,8 @@ project handover if that positioning is revisited.
 
 ## Accessibility
 
-Semantic HTML, labelled inputs, visible focus rings, keyboard-operable timeline
-radios, `role="alert"` error messages linked with `aria-describedby`, and error
+Semantic HTML, labelled inputs, visible focus rings, `role="alert"` error
+messages linked with `aria-describedby`, and error
 and selected states that use a border shift, a background change and an icon —
 never colour on its own. All motion is disabled under
 `prefers-reduced-motion: reduce`; only the submit spinner keeps moving, because
@@ -337,14 +329,15 @@ it communicates that something is happening.
 Runs `api/_lib/lead-core.ts` directly with `fetch` replaced, so it can assert the
 exact request bodies without touching the real API or creating a single test
 lead. It covers: the four contact fields map to `firstName` / `lastName` /
-`emails` / `phones` exactly as typed; the timeline never appears in any of them;
-the event goes to `/v1/events` and never `/v1/people`; Basic auth is used and the
-key never reaches a URL; the note is attached to the person id from the event
-response, after the event, with the timeline and the rest of the step-2 detail in
-its body; **no note is created when the lead fails**; a failed note does not fail
-the lead; an absent person id is handled; the optional and "just curious"
-timelines both submit; invalid input and a missing API key fail before any
-network call; and one submission id produces exactly one event and one note.
+`emails` / `phones` exactly as typed and nothing else; **no timeline data reaches
+the CRM anywhere** — not in the event, the tags or the note — even if a stale
+client still sends the field; the event goes to `/v1/events` and never
+`/v1/people`; Basic auth is used and the key never reaches a URL; the note is
+attached to the person id from the event response, after the event, carrying the
+property address and the rest of the step-2 detail; **no note is created when the
+lead fails**; a failed note does not fail the lead; an absent person id is
+handled; invalid input and a missing API key fail before any network call; and
+one submission id produces exactly one event and one note.
 
 ### `node qa/funnel.qa.mjs` — the funnel in a browser, 181 assertions
 
@@ -353,8 +346,8 @@ the real production build at 375px, 820px and 1440px and asserts, at each size:
 
 PageView fires · Lead does not fire early · no horizontal scroll on either step ·
 empty address blocked · `aria-invalid` set · address carried to step 2 · step 2
-blocks empty submit · invalid email caught · phone auto-formats · one timeline
-selected · CRM failure shows an error and fires no Lead · retry allowed · Lead
+blocks empty submit · invalid email caught · phone auto-formats · CRM failure
+shows an error and fires no Lead · retry allowed · Lead
 fires once on success with an `eventID` · double-click sends one lead · payload
 complete · UTM and fbclid preserved · retry reuses one submission id · refresh
 does not re-fire Lead · no console errors.

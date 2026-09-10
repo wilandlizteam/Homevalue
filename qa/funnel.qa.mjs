@@ -235,9 +235,15 @@ for (const vp of VIEWPORTS) {
   // 4d. Exact copy, verbatim
   const copy2 = await page.evaluate(() => ({
     h1: document.querySelector('h1')?.textContent,
-    q: [...document.querySelectorAll('legend')].map((l) => l.textContent),
-    opts: [...document.querySelectorAll('.choice span')].map((s) => s.textContent),
     cta: document.querySelector('form button[type=submit]')?.textContent,
+    // The timeline field must be gone from the DOM entirely.
+    timelineNodes: document.querySelectorAll(
+      '.choice, .timeline, #timeline-group, [name="timeline"]',
+    ).length,
+    bodyMentionsTimeline: /timeline|0–3 months|3–6 months|6–12 months|just curious/i.test(
+      document.body.innerText,
+    ),
+    fields: [...document.querySelectorAll('form input')].map((i) => i.id),
   }));
   check(
     `${tag} step 2 headline is the market-analysis question`,
@@ -245,21 +251,19 @@ for (const vp of VIEWPORTS) {
     copy2.h1,
   );
   check(
-    `${tag} timeline question verbatim + marked optional`,
-    copy2.q.some((t) => t.startsWith('How soon are you looking to sell your home?')) &&
-      copy2.q.some((t) => /Optional/i.test(t)),
-    JSON.stringify(copy2.q),
+    `${tag} timeline field is gone from the DOM`,
+    copy2.timelineNodes === 0,
+    `${copy2.timelineNodes} timeline nodes found`,
   );
   check(
-    `${tag} timeline options verbatim, incl. the curious option`,
-    JSON.stringify(copy2.opts) ===
-      JSON.stringify([
-        '0–3 months',
-        '3–6 months',
-        '6–12 months',
-        "I'm not interested in selling. I'm just curious about my home value.",
-      ]),
-    JSON.stringify(copy2.opts),
+    `${tag} no timeline wording is rendered anywhere on page 2`,
+    copy2.bodyMentionsTimeline === false,
+  );
+  check(
+    `${tag} page 2 collects exactly first, last, email, phone`,
+    JSON.stringify(copy2.fields) ===
+      JSON.stringify(['firstName', 'lastName', 'email', 'phone']),
+    JSON.stringify(copy2.fields),
   );
   check(`${tag} final CTA is GET MY HOME VALUE`, copy2.cta === 'GET MY HOME VALUE', copy2.cta);
 
@@ -276,10 +280,6 @@ for (const vp of VIEWPORTS) {
   const errs = await page.locator('[role=alert]').count();
   check(`${tag} step 2 blocks empty submit (${errs} messages)`, errs >= 4, `only ${errs}`);
   check(`${tag} no lead posted while invalid`, leadPosts.length === 0);
-  check(
-    `${tag} timeline is NOT flagged as required`,
-    (await page.locator('#timeline-error').count()) === 0,
-  );
 
   // 7. Bad email caught
   await page.fill('#firstName', 'Dana');
@@ -300,17 +300,15 @@ for (const vp of VIEWPORTS) {
 
   await page.fill('#email', 'dana.ortiz@example.com');
 
-  // 9a. The whole point of this change: submit with NO timeline chosen.
-  check(
-    `${tag} no timeline selected at this point`,
-    (await page.locator('.choice[data-selected=true]').count()) === 0,
-  );
+  // 9. Submitting now needs nothing beyond the four contact fields.
   await page.click('form button[type=submit]');
   await page.waitForSelector('.success');
-  check(`${tag} submits with NO timeline selected`, leadPosts.length === 1, `${leadPosts.length} posts`);
-  check(`${tag} lead sent with an empty timeline`, leadPosts[0].timeline === '', JSON.stringify(leadPosts[0]?.timeline));
+  check(`${tag} submits with only the four contact fields`,
+    leadPosts.length === 1, `${leadPosts.length} posts`);
+  check(`${tag} no timeline key is sent to /api/lead`,
+    !('timeline' in leadPosts[0]), JSON.stringify(Object.keys(leadPosts[0] ?? {})));
 
-  // Back to a fresh form to exercise the remaining paths.
+  // Back to a fresh form to exercise the failure/success paths below.
   leadPosts = [];
   await page.evaluate(() => sessionStorage.clear());
   await page.goto(
@@ -324,23 +322,6 @@ for (const vp of VIEWPORTS) {
   await page.fill('#lastName', 'Ortiz');
   await page.fill('#email', 'dana.ortiz@example.com');
   await page.fill('#phone', '7145550142');
-
-  // 9b. The "just curious" option must select and submit like any other.
-  const curious = page.locator('.choice', { hasText: "just curious about my home value" });
-  await curious.click();
-  check(
-    `${tag} "just curious" option selects`,
-    (await curious.getAttribute('data-selected')) === 'true',
-  );
-  check(
-    `${tag} "just curious" sits on its own full-width row`,
-    (await curious.getAttribute('data-wide')) === 'true',
-  );
-
-  // 9c. Back to a duration for the failure/success path below.
-  await page.locator('.choice', { hasText: '3–6 months' }).click();
-  const selected = await page.locator('.choice[data-selected=true]').count();
-  check(`${tag} exactly one timeline selected`, selected === 1, `${selected} selected`);
 
   const consentText =
     (await page.locator('form .form-footnote').last().textContent()) ?? '';
@@ -382,7 +363,7 @@ for (const vp of VIEWPORTS) {
 
   // 12. Payload completeness + attribution
   const sent = successPosts[0] ?? {};
-  const required = ['propertyAddress', 'firstName', 'lastName', 'email', 'phone', 'timeline'];
+  const required = ['propertyAddress', 'firstName', 'lastName', 'email', 'phone'];
   const missing = required.filter((k) => !sent[k]);
   check(`${tag} lead payload complete`, missing.length === 0, `missing ${missing}`);
   check(

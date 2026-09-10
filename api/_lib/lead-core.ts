@@ -28,8 +28,8 @@
  *   POST https://api.followupboss.com/v1/notes
  *     Body: { personId (required, int), subject, body, isHtml }
  *     Success: 200
- *     The note carries the timeline and the rest of the step-2 detail, so none
- *     of it has to be crammed into the name, email or phone fields.
+ *     The note carries the property address and the rest of the step-2 detail,
+ *     so none of it has to be crammed into the name, email or phone fields.
  * ---------------------------------------------------------------------------
  */
 
@@ -43,7 +43,6 @@ export type LeadPayload = {
   lastName?: unknown;
   email?: unknown;
   phone?: unknown;
-  timeline?: unknown;
   source?: unknown;
   attribution?: unknown;
 };
@@ -54,19 +53,6 @@ export type CoreResult = {
 };
 
 const EMAIL_RE = /^[^\s@]+@[^\s@.]+(\.[^\s@.]+)+$/;
-/*
- * The selling timeline is OPTIONAL — an empty value is valid. The page serves
- * homeowners who are only curious what their home is worth, not just those
- * ready to list. Anything outside this set is rejected so a tampered request
- * cannot write arbitrary text into the CRM.
- */
-const ALLOWED_TIMELINES = new Set([
-  '',
-  '0-3 months',
-  '3-6 months',
-  '6-12 months',
-  'Just curious about my home value',
-]);
 
 function str(v: unknown, max: number): string {
   return typeof v === 'string' ? v.trim().slice(0, max) : '';
@@ -113,7 +99,6 @@ export async function handleLead(raw: LeadPayload): Promise<CoreResult> {
     lastName: str(raw.lastName, 80),
     email: str(raw.email, 200),
     phone: str(raw.phone, 40),
-    timeline: str(raw.timeline, 40),
     /* What the visitor's ad click said. Recorded in the note and as a tag —
        NOT used as the FUB source, which identifies the landing page itself. */
     adSource: str(raw.source, 120),
@@ -125,8 +110,6 @@ export async function handleLead(raw: LeadPayload): Promise<CoreResult> {
   if (!lead.lastName) problems.push('last name');
   if (!EMAIL_RE.test(lead.email)) problems.push('email address');
   if (lead.phone.replace(/\D/g, '').length < 10) problems.push('phone number');
-  if (!ALLOWED_TIMELINES.has(lead.timeline)) problems.push('selling timeline');
-
 
   if (problems.length) {
     return {
@@ -165,18 +148,8 @@ export async function handleLead(raw: LeadPayload): Promise<CoreResult> {
   const source = process.env.FUB_SOURCE || landingHost || 'Wil & Liz Seller Landing Page';
   const system = process.env.FUB_SYSTEM || 'Wil & Liz Seller Landing Page';
 
-  /*
-   * Tagging. A blank timeline gets no timeline tag rather than an empty one,
-   * and "just curious" is tagged distinctly so the team can tell a research
-   * enquiry from a listing lead in Follow Up Boss.
-   */
-  const justCurious = lead.timeline === 'Just curious about my home value';
+  /* Tags the team can build smart lists from. */
   const tags = ['Home Value Lead', 'Landing Page'];
-  if (lead.timeline) {
-    tags.push(justCurious ? 'Curious — not selling yet' : `Timeline: ${lead.timeline}`);
-  } else {
-    tags.push('Timeline: not specified');
-  }
   if (lead.adSource) tags.push(`Source: ${lead.adSource}`);
   if (process.env.FUB_ASSIGNED_TAG) tags.push(process.env.FUB_ASSIGNED_TAG);
 
@@ -184,11 +157,6 @@ export async function handleLead(raw: LeadPayload): Promise<CoreResult> {
     `Home value request from the Wil & Liz landing page.`,
     ``,
     `Property address: ${lead.propertyAddress}`,
-    `Selling timeline: ${
-      justCurious
-        ? 'Not selling — curious about home value'
-        : lead.timeline || 'Not specified'
-    }`,
     ...(attributionLines.length ? ['', 'Marketing attribution:', ...attributionLines] : []),
   ].join('\n');
 
@@ -198,12 +166,6 @@ export async function handleLead(raw: LeadPayload): Promise<CoreResult> {
    * email or phone — those stay exactly what the visitor typed.
    */
   const noteBody = [
-    `Timeline: ${
-      justCurious
-        ? "Not selling — just curious about home value"
-        : lead.timeline || 'Not specified'
-    }`,
-    ``,
     `Additional information:`,
     `Property address: ${lead.propertyAddress}`,
     `Name: ${lead.firstName} ${lead.lastName}`,

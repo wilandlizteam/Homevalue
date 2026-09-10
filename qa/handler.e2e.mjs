@@ -145,7 +145,6 @@ await page.fill('#firstName', 'Dana');
 await page.fill('#lastName', 'Ortiz');
 await page.fill('#email', 'dana.ortiz@example.com');
 await page.fill('#phone', '7145550142');
-await page.locator('.choice', { hasText: '3–6 months' }).click();
 
 // Arm the wait BEFORE clicking, so the response can never be missed.
 const leadResponse = page
@@ -183,7 +182,12 @@ check('email mapped correctly', ev?.body.person.emails?.[0]?.value === 'dana.ort
 check('phone mapped correctly', ev?.body.person.phones?.[0]?.value === '(714) 555-0142');
 check('note posted to /v1/notes', !!note);
 check('note attached to the person id from the event', note?.body.personId === 4242);
-check('note carries the timeline', /^Timeline: 3-6 months$/m.test(note?.body.body ?? ''));
+check('note carries the property address',
+  /1420 Camino Real, Fullerton, CA 92835/.test(note?.body.body ?? ''));
+check('no timeline data reaches the CRM',
+  !/timeline/i.test(JSON.stringify(fubCalls)), 'timeline found in CRM payload');
+check('no timeline field is rendered on page 2',
+  (await page.locator('.choice, .timeline, #timeline-group').count()) === 0);
 
 /* ---- pixel ---------------------------------------------------------------- */
 const pixel = await page.evaluate(() => (window.fbq?.queue ?? []).map((a) => [...a].slice(0, 2)));
