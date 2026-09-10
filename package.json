@@ -1,0 +1,38 @@
+{
+  "name": "wilandliz-seller-funnel",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "node scripts/preflight.mjs && tsc --noEmit -p tsconfig.json && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "typecheck:server": "tsc --noEmit -p tsconfig.server.json",
+    "lint": "oxlint src",
+    "preview:file": "npm run build && node scripts/build-preview.mjs",
+    "qa": "npm run build && node --experimental-strip-types qa/lead-core.test.mjs && node --experimental-strip-types qa/handler.e2e.mjs && node qa/funnel.qa.mjs",
+    "test:fub": "node --experimental-strip-types qa/lead-core.test.mjs",
+    "test:handler": "node --experimental-strip-types qa/handler.e2e.mjs"
+  },
+  "dependencies": {
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.3",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
+    "@vitejs/plugin-react": "^6.1.0",
+    "autoprefixer": "^10.5.5",
+    "oxlint": "^1.79.0",
+    "postcss": "^8.5.28",
+    "tailwindcss": "3.4.1",
+    "typescript": "~6.0.2",
+    "vite": "^8.2.2"
+  },
+  "description": "Wil & Liz Team \u2014 Southern California seller lead funnel",
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
